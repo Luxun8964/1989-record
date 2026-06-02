@@ -4,5 +4,5 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
-  base: '/', // ⚠️ 切换到 Vercel 部署，必须把路径改回单斜杠 '/'
+  base: '/1989-record/', // 确保此处的仓库名与你的 GitHub 仓库名称完全一致
 })

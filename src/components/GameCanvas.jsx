@@ -545,7 +545,7 @@ export default function GameCanvas() {
                     return (
                       <div key={photoNum} style={{ display: 'flex', background: '#030000', border: '1px solid #1a0202', padding: '15px', alignItems: 'center', gap: '25px', textAlign: 'left' }}>
                         <div style={{ width: '220px', height: '150px', background: '#0c0000', overflow: 'hidden', flexShrink: 0 }}>
-                          <img src={`/src/assets/images/photo${photoNum}.jpg`} style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'sepia(90%) contrast(110%)' }} alt="archive" />
+                          <img src={`/images/photo${photoNum}.jpg`} style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'sepia(90%) contrast(110%)' }} alt="archive" />
                         </div>
                         <div>
                           <h5 style={{ color: '#ff4444', fontFamily: 'monospace', marginBottom: '6px' }}>INDEX_ID: FILE_PHOTO_{photoNum}.JPG</h5>

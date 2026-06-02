@@ -82,7 +82,6 @@ export function generateAdvancedMaze(gridSize) {
   // 乱序洗牌池分派 1-28 现场底片
   const photoIdPool = Array.from({ length: 28 }, (_, i) => i + 1).sort(() => Math.random() - 0.5);
   const shuffledDecoys = [...decoyCoords].sort(() => Math.random() - 0.5);
-  
   const photoNodes = Array.from({ length: 25 }, (_, i) => {
     const targetCell = shuffledDecoys[i % shuffledDecoys.length] || { x: 2, y: 2 };
     const photoId = photoIdPool[i % photoIdPool.length];
@@ -90,7 +89,7 @@ export function generateAdvancedMaze(gridSize) {
       id: photoId, 
       worldX: targetCell.x * CELL_SIZE + CELL_SIZE / 2,
       worldY: targetCell.y * CELL_SIZE + CELL_SIZE / 2,
-      path: `/src/assets/images/photo${photoId}.jpg`,
+      path: `/images/photo${photoId}.jpg`, // 修改：直接指向 public 下的 images
       revealLevel: 0,
       isCaptured: false
     };
