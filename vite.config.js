@@ -4,5 +4,5 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
-  base: '/1989-record/', // 确保此处的仓库名与你的 GitHub 仓库名称完全一致
+  base: '/1989-record/', // ⚠️ 必须带上前后的斜杠
 })

@@ -3,11 +3,6 @@ import { SETTING } from './setting';
 
 export const CELL_SIZE = SETTING.CELL_SIZE;
 
-// 使用 Vite 原生的动态资源解析，保证打包后 100% 不断链
-export function getImageUrl(photoId) {
-  return new URL(`../assets/images/photo${photoId}.jpg`, import.meta.url).href;
-}
-
 export function generateAdvancedMaze(gridSize) {
   const actualSize = gridSize % 2 === 0 ? gridSize + 1 : gridSize;
   const grid = Array.from({ length: actualSize }, () => Array(actualSize).fill(1));
@@ -91,7 +86,7 @@ export function generateAdvancedMaze(gridSize) {
       id: photoId, 
       worldX: targetCell.x * CELL_SIZE + CELL_SIZE / 2,
       worldY: targetCell.y * CELL_SIZE + CELL_SIZE / 2,
-      path: getImageUrl(photoId), // 通过 Vite 原生方法获取绝对不丢失的路径
+      path: `./images/photo${photoId}.jpg`, // ⚠️ 修改：使用相对定位，100%命中根目录的 public/images/
       revealLevel: 0,
       isCaptured: false,
       error: false

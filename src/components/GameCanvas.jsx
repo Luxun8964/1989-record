@@ -1,6 +1,6 @@
 // src/components/GameCanvas.jsx
 import React, { useRef, useEffect, useState } from 'react';
-import { generateAdvancedMaze, getNextGridStep, CELL_SIZE } from '../utils/gameStructures';
+import { generateAdvancedMaze, getNextGridStep } from '../utils/gameStructures';
 import { LOCALIZATION } from '../utils/localization';
 import { SETTING } from '../utils/setting';
 
@@ -38,9 +38,9 @@ export default function GameCanvas() {
 
   const t = LOCALIZATION[lang].ui;
 
-  // 使用与 gameStructures 相同的解析器来渲染 28 张长卷档案
+  // ⚠️ 修改：解密长卷同样使用相对定位
   const getArchiveImageUrl = (photoId) => {
-    return new URL(`../assets/images/photo${photoId}.jpg`, import.meta.url).href;
+    return `./images/photo${photoId}.jpg`;
   };
 
   useEffect(() => {
@@ -87,7 +87,6 @@ export default function GameCanvas() {
       });
     }
 
-    // 载入侦测：确保捕获 Error 状态
     engine.current.nodes.forEach(n => {
       const img = new Image(); 
       img.src = n.path; 
@@ -341,35 +340,36 @@ export default function GameCanvas() {
       ctx.strokeStyle = '#00ff55'; ctx.lineWidth = 3; ctx.strokeRect(exX - SETTING.CELL_SIZE / 2, exY - SETTING.CELL_SIZE / 2, SETTING.CELL_SIZE, SETTING.CELL_SIZE);
       ctx.fillStyle = '#00ff55'; ctx.font = "bold 15px monospace"; ctx.textAlign = 'center'; ctx.fillText(t.exit_label, exX, exY + 5);
 
-      // 防报错降级渲染引擎
+      // ⚠️ 修改：大幅加速显影，并引入 Error 绝对曝光防呆机制
       state.nodes.forEach(n => {
         if (n.isCaptured) return;
         const nx = n.worldX - state.player.x; const ny = n.worldY - state.player.y; const d = Math.sqrt(nx*nx + ny*ny);
         const ang = Math.atan2(ny, nx); const diff = Math.atan2(Math.sin(lookAngle - ang), Math.cos(lookAngle - ang));
         
+        // 提速：只要照到，0.2秒内透明度飙升至 85%
         if (d < maxRange && Math.abs(diff) < beamSpread / 2 && !capturedImage) { 
-          n.revealLevel = Math.min(n.revealLevel + 0.012, 0.6); 
+          n.revealLevel = Math.min(n.revealLevel + 0.04, 0.85); 
         } else if (!capturedImage) { 
           n.revealLevel = Math.max(n.revealLevel - 0.02, 0); 
         }
         
-        if (n.revealLevel > 0) {
+        if (n.revealLevel > 0 || n.error) {
           ctx.save(); 
-          ctx.globalAlpha = n.revealLevel; 
           
           if (n.htmlImg && !n.error) {
-            ctx.filter = `grayscale(100%) brightness(0.38) sepia(20%)`;
+            ctx.globalAlpha = n.revealLevel; 
+            ctx.filter = `grayscale(100%) brightness(0.45) sepia(20%)`;
             ctx.drawImage(n.htmlImg, n.worldX - state.player.x + cx - 60, n.worldY - state.player.y + cy - 45, 120, 90); 
-          } else {
-            // ==================== 错误回退框渲染 ====================
-            // 如果图片 404 或断链，会在原地高频闪烁红色错误框，便于你快速排查是否还有路径漏网之鱼
+          } else if (n.error) {
+            // 如果 404，无视手电筒直接在全图高频闪烁爆红，让你一眼就能看到 Bug 在哪
+            ctx.globalAlpha = 1.0; 
             ctx.strokeStyle = `rgba(255, 0, 0, ${Math.abs(Math.sin(now / 150))})`; 
             ctx.lineWidth = 4;
             ctx.strokeRect(n.worldX - state.player.x + cx - 60, n.worldY - state.player.y + cy - 45, 120, 90);
             ctx.fillStyle = '#ff0000';
             ctx.font = 'bold 15px monospace';
             ctx.textAlign = 'center';
-            ctx.fillText("404 ERROR", n.worldX - state.player.x + cx, n.worldY - state.player.y + cy + 5);
+            ctx.fillText("404 NO IMAGE", n.worldX - state.player.x + cx, n.worldY - state.player.y + cy + 5);
           }
           
           ctx.restore();
