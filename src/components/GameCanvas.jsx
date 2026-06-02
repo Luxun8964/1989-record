@@ -5,11 +5,10 @@ import { LOCALIZATION } from '../utils/localization';
 import { SETTING } from '../utils/setting';
 
 export default function GameCanvas() {
-  const [lang, setLang] = useState('zh'); // zh, zt, en, ja
-  const [gameStage, setGameStage] = useState('boot'); // boot, intro, playing, victory, gameover
+  const [lang, setLang] = useState('zh'); 
+  const [gameStage, setGameStage] = useState('boot'); 
   const [difficulty, setDifficulty] = useState('normal'); 
   
-  // 自定义难度二级菜单参数控制
   const [customSize, setCustomSize] = useState(30);
   const [customMap, setCustomMap] = useState(true);
   const [showCustomMenu, setShowCustomMenu] = useState(false); 
@@ -39,7 +38,6 @@ export default function GameCanvas() {
 
   const t = LOCALIZATION[lang].ui;
 
-  // 入场开场动画生命周期
   useEffect(() => {
     if (gameStage === 'boot') {
       const timer = setTimeout(() => {
@@ -86,8 +84,12 @@ export default function GameCanvas() {
       });
     }
 
+    // 加入加载错误捕捉机制
     engine.current.nodes.forEach(n => {
-      const img = new Image(); img.src = n.path; img.onload = () => { n.htmlImg = img; };
+      const img = new Image(); 
+      img.src = n.path; 
+      img.onload = () => { n.htmlImg = img; };
+      img.onerror = () => { n.error = true; }; 
     });
 
     forceUnmuteAudio();
@@ -154,7 +156,6 @@ export default function GameCanvas() {
     return false;
   };
 
-  // 绝密洗相流水线
   useEffect(() => {
     if (gameStage === 'victory') {
       const timers = [];
@@ -178,7 +179,6 @@ export default function GameCanvas() {
     }
   }, [gameStage, capturedPhotos]);
 
-  // 物理渲染主循环（已全面消除旧变量 CELL_SIZE）
   useEffect(() => {
     if (gameStage !== 'playing') return;
 
@@ -301,7 +301,6 @@ export default function GameCanvas() {
         } else { if (!anyClose) state.closeEnemyId = null; }
       }
 
-      // ==================== RAYCASTING LIGHTING ====================
       ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, w, h);
       const lookAngle = Math.atan2(state.mouseY - cy, state.mouseX - cx);
       const beamSpread = SETTING.RAYCAST_BEAM_SPREAD; const maxRange = SETTING.RAYCAST_MAX_RANGE;
@@ -335,21 +334,35 @@ export default function GameCanvas() {
       const tAnWorldX = (mapSize/2)*SETTING.CELL_SIZE; const tAnWorldY = (mapSize/2)*SETTING.CELL_SIZE;
       ctx.fillStyle = 'rgba(110,0,0,0.3)'; ctx.fillRect(tAnWorldX - state.player.x + cx - 180, tAnWorldY - state.player.y + cy - 90, 360, 180);
 
-      // 安全撤离大门区
       const exX = exitWorldX - state.player.x + cx; const exY = exitWorldY - state.player.y + cy;
       ctx.fillStyle = 'rgba(0, 230, 70, 0.22)'; ctx.fillRect(exX - SETTING.CELL_SIZE / 2, exY - SETTING.CELL_SIZE / 2, SETTING.CELL_SIZE, SETTING.CELL_SIZE);
       ctx.strokeStyle = '#00ff55'; ctx.lineWidth = 3; ctx.strokeRect(exX - SETTING.CELL_SIZE / 2, exY - SETTING.CELL_SIZE / 2, SETTING.CELL_SIZE, SETTING.CELL_SIZE);
       ctx.fillStyle = '#00ff55'; ctx.font = "bold 15px monospace"; ctx.textAlign = 'center'; ctx.fillText(t.exit_label, exX, exY + 5);
 
+      // 防静默失败的占位符渲染逻辑
       state.nodes.forEach(n => {
         if (n.isCaptured) return;
         const nx = n.worldX - state.player.x; const ny = n.worldY - state.player.y; const d = Math.sqrt(nx*nx + ny*ny);
         const ang = Math.atan2(ny, nx); const diff = Math.atan2(Math.sin(lookAngle - ang), Math.cos(lookAngle - ang));
         if (d < maxRange && Math.abs(diff) < beamSpread / 2 && !capturedImage) { n.revealLevel = Math.min(n.revealLevel + 0.012, 0.6); }
         else if (!capturedImage) { n.revealLevel = Math.max(n.revealLevel - 0.02, 0); }
-        if (n.revealLevel > 0 && n.htmlImg) {
-          ctx.save(); ctx.globalAlpha = n.revealLevel; ctx.filter = `grayscale(100%) brightness(0.38) sepia(20%)`;
-          ctx.drawImage(n.htmlImg, n.worldX - state.player.x + cx - 60, n.worldY - state.player.y + cy - 45, 120, 90); ctx.restore();
+        
+        if (n.revealLevel > 0) {
+          ctx.save(); ctx.globalAlpha = n.revealLevel;
+          if (n.htmlImg) {
+            ctx.filter = `grayscale(100%) brightness(0.38) sepia(20%)`;
+            ctx.drawImage(n.htmlImg, n.worldX - state.player.x + cx - 60, n.worldY - state.player.y + cy - 45, 120, 90);
+          } else {
+            // 防断链降级显示：如果图片路径不对或网络卡住，显示一个耀眼的高亮框
+            ctx.strokeStyle = n.error ? '#ff0000' : '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(n.worldX - state.player.x + cx - 60, n.worldY - state.player.y + cy - 45, 120, 90);
+            ctx.fillStyle = n.error ? '#ff0000' : '#ffffff';
+            ctx.font = 'bold 13px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(n.error ? "404 NOT FOUND" : "LOADING...", n.worldX - state.player.x + cx, n.worldY - state.player.y + cy);
+          }
+          ctx.restore();
         }
       });
 
@@ -521,7 +534,7 @@ export default function GameCanvas() {
                   return (
                     <div key={idx} style={{ width: '190px', height: '300px', background: '#040000', border: '1px dashed #2f0a0a', padding: '8px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                       <div style={{ width: '100%', height: '120px', background: '#100000', overflow: 'hidden' }}>
-                        {hasVal && <img src={photoData.path} style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'sepia(100%) saturate(180%) contrast(110%)', opacity: op }} alt="dev" />}
+                        {hasVal && <img src={photoData.path} style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'sepia(100%) saturate(160%) contrast(110%)', opacity: op }} alt="dev" />}
                       </div>
                       <p style={{ marginTop: '12px', fontSize: '11.5px', color: `rgba(245,60,60, ${op})`, lineHeight: '1.4', textAlign: 'left' }}>
                         {photoData ? LOCALIZATION[lang].captions[photoData.id] : "（损毁曝光相纸）"}
@@ -545,7 +558,8 @@ export default function GameCanvas() {
                     return (
                       <div key={photoNum} style={{ display: 'flex', background: '#030000', border: '1px solid #1a0202', padding: '15px', alignItems: 'center', gap: '25px', textAlign: 'left' }}>
                         <div style={{ width: '220px', height: '150px', background: '#0c0000', overflow: 'hidden', flexShrink: 0 }}>
-                          <img src={`/images/photo${photoNum}.jpg`} style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'sepia(90%) contrast(110%)' }} alt="archive" />
+                          {/* 同样使用 Vite 全局变量保证绝对路径不出错 */}
+                          <img src={`${import.meta.env.BASE_URL}images/photo${photoNum}.jpg`} style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'sepia(90%) contrast(110%)' }} alt="archive" />
                         </div>
                         <div>
                           <h5 style={{ color: '#ff4444', fontFamily: 'monospace', marginBottom: '6px' }}>INDEX_ID: FILE_PHOTO_{photoNum}.JPG</h5>

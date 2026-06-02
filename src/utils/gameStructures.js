@@ -1,10 +1,8 @@
 // src/utils/gameStructures.js
 import { SETTING } from './setting';
 
-// 保持无缝兼容，重导向 CELL_SIZE
 export const CELL_SIZE = SETTING.CELL_SIZE;
 
-// 动态生成包含主/诱导路径的封闭迷宫拓扑
 export function generateAdvancedMaze(gridSize) {
   const actualSize = gridSize % 2 === 0 ? gridSize + 1 : gridSize;
   const grid = Array.from({ length: actualSize }, () => Array(actualSize).fill(1));
@@ -34,7 +32,6 @@ export function generateAdvancedMaze(gridSize) {
     }
   }
 
-  // 生成相隔极远的起点与撤离点
   const start = floorTiles[Math.floor(Math.random() * floorTiles.length)];
   let exit = floorTiles[0];
   
@@ -51,7 +48,6 @@ export function generateAdvancedMaze(gridSize) {
     });
   }
 
-  // 图论 BFS 计算主路径
   const queue = [[start.x, start.y, []]];
   const visited = Array.from({ length: actualSize }, () => Array(actualSize).fill(false));
   visited[start.y][start.x] = true;
@@ -79,19 +75,24 @@ export function generateAdvancedMaze(gridSize) {
     if (!mainPathSet.has(`${tile.x},${tile.y}`)) decoyCoords.push(tile);
   }
 
-  // 乱序洗牌池分派 1-28 现场底片
+  // 保证至少有足够的节点，如果是小地图，死胡同不够，就允许放在主路上
+  const availableTiles = decoyCoords.length >= 28 ? decoyCoords : floorTiles;
+  
   const photoIdPool = Array.from({ length: 28 }, (_, i) => i + 1).sort(() => Math.random() - 0.5);
-  const shuffledDecoys = [...decoyCoords].sort(() => Math.random() - 0.5);
-  const photoNodes = Array.from({ length: 25 }, (_, i) => {
-    const targetCell = shuffledDecoys[i % shuffledDecoys.length] || { x: 2, y: 2 };
+  const shuffledTiles = [...availableTiles].sort(() => Math.random() - 0.5);
+  
+  const photoNodes = Array.from({ length: 28 }, (_, i) => {
+    const targetCell = shuffledTiles[i % shuffledTiles.length] || { x: 2, y: 2 };
     const photoId = photoIdPool[i % photoIdPool.length];
     return {
       id: photoId, 
       worldX: targetCell.x * CELL_SIZE + CELL_SIZE / 2,
       worldY: targetCell.y * CELL_SIZE + CELL_SIZE / 2,
-      path: `/images/photo${photoId}.jpg`, // 修改：直接指向 public 下的 images
+      // 使用 Vite 环境变量确保根路径绝对正确
+      path: `${import.meta.env.BASE_URL}images/photo${photoId}.jpg`,
       revealLevel: 0,
-      isCaptured: false
+      isCaptured: false,
+      error: false // 新增错误追踪状态
     };
   });
 
