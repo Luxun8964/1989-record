@@ -1,8 +1,10 @@
 // src/utils/gameStructures.js
+import { SETTING } from './setting';
 
-export const CELL_SIZE = 160;
+// 保持无缝兼容，重导向 CELL_SIZE
+export const CELL_SIZE = SETTING.CELL_SIZE;
 
-// ==================== 随机极远距离约束的迷宫拓扑分发器 ====================
+// 动态生成包含主/诱导路径的封闭迷宫拓扑
 export function generateAdvancedMaze(gridSize) {
   const actualSize = gridSize % 2 === 0 ? gridSize + 1 : gridSize;
   const grid = Array.from({ length: actualSize }, () => Array(actualSize).fill(1));
@@ -32,11 +34,11 @@ export function generateAdvancedMaze(gridSize) {
     }
   }
 
-  // ==================== 核心机制：全随机生成相隔极远的起点与终点 ====================
+  // 生成相隔极远的起点与撤离点
   const start = floorTiles[Math.floor(Math.random() * floorTiles.length)];
   let exit = floorTiles[0];
   
-  const minRequiredDist = actualSize * 0.65; // 直线物理距离至少横跨迷宫大小的 65%
+  const minRequiredDist = actualSize * 0.65;
   const validExits = floorTiles.filter(t => Math.sqrt(Math.pow(t.x - start.x, 2) + Math.pow(t.y - start.y, 2)) >= minRequiredDist);
   
   if (validExits.length > 0) {
@@ -49,7 +51,7 @@ export function generateAdvancedMaze(gridSize) {
     });
   }
 
-  // 图论 BFS 判定主干道
+  // 图论 BFS 计算主路径
   const queue = [[start.x, start.y, []]];
   const visited = Array.from({ length: actualSize }, () => Array(actualSize).fill(false));
   visited[start.y][start.x] = true;
@@ -77,7 +79,7 @@ export function generateAdvancedMaze(gridSize) {
     if (!mainPathSet.has(`${tile.x},${tile.y}`)) decoyCoords.push(tile);
   }
 
-  // ==================== 洗牌分派：杜绝内容不匹配的 Bug ====================
+  // 乱序洗牌池分派 1-28 现场底片
   const photoIdPool = Array.from({ length: 28 }, (_, i) => i + 1).sort(() => Math.random() - 0.5);
   const shuffledDecoys = [...decoyCoords].sort(() => Math.random() - 0.5);
   
@@ -88,7 +90,7 @@ export function generateAdvancedMaze(gridSize) {
       id: photoId, 
       worldX: targetCell.x * CELL_SIZE + CELL_SIZE / 2,
       worldY: targetCell.y * CELL_SIZE + CELL_SIZE / 2,
-      path: `/src/assets/images/photo${photoId}.jpg`, // 路径和 ID 保持 100% 绝对一致
+      path: `/src/assets/images/photo${photoId}.jpg`,
       revealLevel: 0,
       isCaptured: false
     };
