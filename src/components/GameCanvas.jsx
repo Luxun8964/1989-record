@@ -1,6 +1,6 @@
 // src/components/GameCanvas.jsx
 import React, { useRef, useEffect, useState } from 'react';
-import { generateAdvancedMaze, getNextGridStep } from '../utils/gameStructures';
+import { generateAdvancedMaze, getNextGridStep, CELL_SIZE } from '../utils/gameStructures';
 import { LOCALIZATION } from '../utils/localization';
 import { SETTING } from '../utils/setting';
 
@@ -38,11 +38,14 @@ export default function GameCanvas() {
 
   const t = LOCALIZATION[lang].ui;
 
+  // 使用与 gameStructures 相同的解析器来渲染 28 张长卷档案
+  const getArchiveImageUrl = (photoId) => {
+    return new URL(`../assets/images/photo${photoId}.jpg`, import.meta.url).href;
+  };
+
   useEffect(() => {
     if (gameStage === 'boot') {
-      const timer = setTimeout(() => {
-        setGameStage('intro');
-      }, 2600); 
+      const timer = setTimeout(() => { setGameStage('intro'); }, 2600); 
       return () => clearTimeout(timer);
     }
   }, [gameStage]);
@@ -84,11 +87,11 @@ export default function GameCanvas() {
       });
     }
 
-    // 加入加载错误捕捉机制
+    // 载入侦测：确保捕获 Error 状态
     engine.current.nodes.forEach(n => {
       const img = new Image(); 
       img.src = n.path; 
-      img.onload = () => { n.htmlImg = img; };
+      img.onload = () => { n.htmlImg = img; n.error = false; };
       img.onerror = () => { n.error = true; }; 
     });
 
@@ -128,8 +131,7 @@ export default function GameCanvas() {
     const osc = ctx.createOscillator(); const gain = ctx.createGain();
     osc.type = 'triangle'; osc.frequency.setValueAtTime(SETTING.AUDIO.FOOTSTEP_FREQ_START, ctx.currentTime);
     osc.frequency.exponentialRampToValueAtTime(SETTING.AUDIO.FOOTSTEP_FREQ_END, ctx.currentTime + 0.12);
-    gain.gain.setValueAtTime(vol * 0.9, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+    gain.gain.setValueAtTime(vol * 0.9, ctx.currentTime); gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
     if (panner) { panner.pan.setValueAtTime(pan, ctx.currentTime); osc.connect(gain).connect(panner).connect(ctx.destination); }
     else { osc.connect(gain).connect(ctx.destination); }
     osc.start(); osc.stop(ctx.currentTime + 0.13);
@@ -295,7 +297,7 @@ export default function GameCanvas() {
 
         if (state.closeEnemyId !== null) {
           if (now - state.dangerStartTime > SETTING.REACTION_TIME_LIMIT) {
-            setFailReason(lang === 'en' ? `Caught inside the dark grid alley by [${state.closeEnemyId}], all frames exposed.` : `在漆黑的不透光胡同里，你遭遇了【${state.closeEnemyId}】的拦截，底片全部曝光。`);
+            setFailReason(lang === 'en' ? `Caught inside the dark alley by [${state.closeEnemyId}], all film exposed.` : `在漆黑的不透光胡同里，你遭遇了【${state.closeEnemyId}】的拦截，底片全部曝光。`);
             setGameStage('gameover'); return;
           }
         } else { if (!anyClose) state.closeEnemyId = null; }
@@ -339,29 +341,37 @@ export default function GameCanvas() {
       ctx.strokeStyle = '#00ff55'; ctx.lineWidth = 3; ctx.strokeRect(exX - SETTING.CELL_SIZE / 2, exY - SETTING.CELL_SIZE / 2, SETTING.CELL_SIZE, SETTING.CELL_SIZE);
       ctx.fillStyle = '#00ff55'; ctx.font = "bold 15px monospace"; ctx.textAlign = 'center'; ctx.fillText(t.exit_label, exX, exY + 5);
 
-      // 防静默失败的占位符渲染逻辑
+      // 防报错降级渲染引擎
       state.nodes.forEach(n => {
         if (n.isCaptured) return;
         const nx = n.worldX - state.player.x; const ny = n.worldY - state.player.y; const d = Math.sqrt(nx*nx + ny*ny);
         const ang = Math.atan2(ny, nx); const diff = Math.atan2(Math.sin(lookAngle - ang), Math.cos(lookAngle - ang));
-        if (d < maxRange && Math.abs(diff) < beamSpread / 2 && !capturedImage) { n.revealLevel = Math.min(n.revealLevel + 0.012, 0.6); }
-        else if (!capturedImage) { n.revealLevel = Math.max(n.revealLevel - 0.02, 0); }
+        
+        if (d < maxRange && Math.abs(diff) < beamSpread / 2 && !capturedImage) { 
+          n.revealLevel = Math.min(n.revealLevel + 0.012, 0.6); 
+        } else if (!capturedImage) { 
+          n.revealLevel = Math.max(n.revealLevel - 0.02, 0); 
+        }
         
         if (n.revealLevel > 0) {
-          ctx.save(); ctx.globalAlpha = n.revealLevel;
-          if (n.htmlImg) {
+          ctx.save(); 
+          ctx.globalAlpha = n.revealLevel; 
+          
+          if (n.htmlImg && !n.error) {
             ctx.filter = `grayscale(100%) brightness(0.38) sepia(20%)`;
-            ctx.drawImage(n.htmlImg, n.worldX - state.player.x + cx - 60, n.worldY - state.player.y + cy - 45, 120, 90);
+            ctx.drawImage(n.htmlImg, n.worldX - state.player.x + cx - 60, n.worldY - state.player.y + cy - 45, 120, 90); 
           } else {
-            // 防断链降级显示：如果图片路径不对或网络卡住，显示一个耀眼的高亮框
-            ctx.strokeStyle = n.error ? '#ff0000' : '#ffffff';
-            ctx.lineWidth = 2;
+            // ==================== 错误回退框渲染 ====================
+            // 如果图片 404 或断链，会在原地高频闪烁红色错误框，便于你快速排查是否还有路径漏网之鱼
+            ctx.strokeStyle = `rgba(255, 0, 0, ${Math.abs(Math.sin(now / 150))})`; 
+            ctx.lineWidth = 4;
             ctx.strokeRect(n.worldX - state.player.x + cx - 60, n.worldY - state.player.y + cy - 45, 120, 90);
-            ctx.fillStyle = n.error ? '#ff0000' : '#ffffff';
-            ctx.font = 'bold 13px monospace';
+            ctx.fillStyle = '#ff0000';
+            ctx.font = 'bold 15px monospace';
             ctx.textAlign = 'center';
-            ctx.fillText(n.error ? "404 NOT FOUND" : "LOADING...", n.worldX - state.player.x + cx, n.worldY - state.player.y + cy);
+            ctx.fillText("404 ERROR", n.worldX - state.player.x + cx, n.worldY - state.player.y + cy + 5);
           }
+          
           ctx.restore();
         }
       });
@@ -435,14 +445,12 @@ export default function GameCanvas() {
       
       <div style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden', background: '#000' }}>
         
-        {/* 开场光圈闪烁仪式感动画 */}
         {gameStage === 'boot' && (
           <div style={{ position: 'absolute', width: '100%', height: '100%', zIndex: 999, animation: 'cinematicBoot 2.6s cubic-bezier(0.7, 0, 0.3, 1) forwards', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
             <div style={{ width: '80px', height: '80px', borderRadius: '50%', border: '2px solid #300', boxShadow: '0 0 30px #f00' }} />
           </div>
         )}
 
-        {/* 难度主选单 */}
         {gameStage === 'intro' && (
           <div style={overlayStyle}>
             <div style={{ position: 'absolute', top: 30, display: 'flex', gap: '10px', zIndex: 300 }}>
@@ -471,7 +479,6 @@ export default function GameCanvas() {
               </button>
             </div>
 
-            {/* 自定义二级拓展配置菜单 */}
             <div className={`sub-menu-panel ${showCustomMenu ? 'open' : ''}`}>
               <div style={{ padding: '20px 35px', background: '#030303', border: '1px dashed #444', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '25px', fontSize: '13px', color: '#aaa' }}>
                 <label>
@@ -488,7 +495,6 @@ export default function GameCanvas() {
           </div>
         )}
 
-        {/* 潜行世界 */}
         {gameStage === 'playing' && (
           <>
             <canvas ref={canvasRef} style={{ display: 'block' }} />
@@ -518,7 +524,6 @@ export default function GameCanvas() {
           </>
         )}
 
-        {/* 显影暗房 */}
         {gameStage === 'victory' && (
           <div style={{ ...overlayStyle, backgroundColor: '#070000', overflowY: 'scroll', padding: '60px 40px', justifyContent: 'flex-start' }}>
             <div style={{ textAlign: 'center', maxWidth: '1100px', width: '100%', marginBottom: showFullArchive ? '10px' : '50px' }}>
@@ -558,8 +563,7 @@ export default function GameCanvas() {
                     return (
                       <div key={photoNum} style={{ display: 'flex', background: '#030000', border: '1px solid #1a0202', padding: '15px', alignItems: 'center', gap: '25px', textAlign: 'left' }}>
                         <div style={{ width: '220px', height: '150px', background: '#0c0000', overflow: 'hidden', flexShrink: 0 }}>
-                          {/* 同样使用 Vite 全局变量保证绝对路径不出错 */}
-                          <img src={`${import.meta.env.BASE_URL}images/photo${photoNum}.jpg`} style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'sepia(90%) contrast(110%)' }} alt="archive" />
+                          <img src={getArchiveImageUrl(photoNum)} style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'sepia(90%) contrast(110%)' }} alt="archive" />
                         </div>
                         <div>
                           <h5 style={{ color: '#ff4444', fontFamily: 'monospace', marginBottom: '6px' }}>INDEX_ID: FILE_PHOTO_{photoNum}.JPG</h5>
@@ -579,7 +583,6 @@ export default function GameCanvas() {
           </div>
         )}
 
-        {/* 失败页 */}
         {gameStage === 'gameover' && (
           <div style={overlayStyle}>
             <h2 style={{ color: '#ff1a1a', fontSize: '26px', marginBottom: '20px' }}>{t.fail_title}</h2>

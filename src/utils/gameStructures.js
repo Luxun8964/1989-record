@@ -3,6 +3,11 @@ import { SETTING } from './setting';
 
 export const CELL_SIZE = SETTING.CELL_SIZE;
 
+// 使用 Vite 原生的动态资源解析，保证打包后 100% 不断链
+export function getImageUrl(photoId) {
+  return new URL(`../assets/images/photo${photoId}.jpg`, import.meta.url).href;
+}
+
 export function generateAdvancedMaze(gridSize) {
   const actualSize = gridSize % 2 === 0 ? gridSize + 1 : gridSize;
   const grid = Array.from({ length: actualSize }, () => Array(actualSize).fill(1));
@@ -75,9 +80,7 @@ export function generateAdvancedMaze(gridSize) {
     if (!mainPathSet.has(`${tile.x},${tile.y}`)) decoyCoords.push(tile);
   }
 
-  // 保证至少有足够的节点，如果是小地图，死胡同不够，就允许放在主路上
   const availableTiles = decoyCoords.length >= 28 ? decoyCoords : floorTiles;
-  
   const photoIdPool = Array.from({ length: 28 }, (_, i) => i + 1).sort(() => Math.random() - 0.5);
   const shuffledTiles = [...availableTiles].sort(() => Math.random() - 0.5);
   
@@ -88,11 +91,10 @@ export function generateAdvancedMaze(gridSize) {
       id: photoId, 
       worldX: targetCell.x * CELL_SIZE + CELL_SIZE / 2,
       worldY: targetCell.y * CELL_SIZE + CELL_SIZE / 2,
-      // 使用 Vite 环境变量确保根路径绝对正确
-      path: `${import.meta.env.BASE_URL}images/photo${photoId}.jpg`,
+      path: getImageUrl(photoId), // 通过 Vite 原生方法获取绝对不丢失的路径
       revealLevel: 0,
       isCaptured: false,
-      error: false // 新增错误追踪状态
+      error: false
     };
   });
 
@@ -101,22 +103,18 @@ export function generateAdvancedMaze(gridSize) {
 
 export function getNextGridStep(enemyGridX, enemyGridY, playerGridX, playerGridY, grid, gridSize) {
   if (enemyGridX === playerGridX && enemyGridY === playerGridY) return { x: enemyGridX, y: enemyGridY };
-  
   const queue = [[enemyGridX, enemyGridY, []]];
   const visited = Array.from({ length: gridSize }, () => Array(gridSize).fill(false));
   visited[enemyGridY][enemyGridX] = true;
 
   while (queue.length > 0) {
     const [cx, cy, path] = queue.shift();
-    if (cx === playerGridX && cy === playerGridY) {
-      return path[0] ? { x: path[0][0], y: path[0][1] } : { x: cx, y: cy };
-    }
+    if (cx === playerGridX && cy === playerGridY) return path[0] ? { x: path[0][0], y: path[0][1] } : { x: cx, y: cy };
     const dirs = [[0,1],[0,-1],[1,0],[-1,0]];
     for (let [dx, dy] of dirs) {
       const nx = cx + dx, ny = cy + dy;
       if (nx >= 0 && nx < gridSize && ny >= 0 && ny < gridSize && !visited[ny][nx] && grid[ny][nx] === 0) {
-        visited[ny][nx] = true;
-        queue.push([nx, ny, [...path, [nx, ny]]]);
+        visited[ny][nx] = true; queue.push([nx, ny, [...path, [nx, ny]]]);
       }
     }
   }
